@@ -4,7 +4,7 @@
     <div v-for="input in formInputs" :key="input.id" class="form-item">
       <input
         @input="calculate($event, input.slug)"
-        v-model.number="formData[input.slug]"
+        :value="formData[input.slug]"
         :placeholder="input.slug"
         type="number"
       />
@@ -24,6 +24,9 @@
 
 <script>
 import { debounce } from "lodash";
+import helpers from '../helpers/helpers'
+import createLog from '../services/createLog'
+import api from '../api/api.js'
 
 export default {
   data() {
@@ -54,69 +57,69 @@ export default {
     }
   },
   created() {
-    const currentStorage = localStorage.getItem('calculationStorage');
-    if (currentStorage) {
-      this.storage = currentStorage
-      this.nonce = JSON.parse(currentStorage).nonce;
+    this.initStorage()
+  },
+  watch: {
+    'formData.price': function(value) {
+      this.pushToLog(`Поле price изменилось на ${value}`)
+    },
+    'formData.qty': function(value) {
+      this.pushToLog(`Поле qty изменилось на ${value}`)
+    },
+    'formData.amount': function(value) {
+      this.pushToLog(`Поле amount изменилось на ${value}`)
     }
-   },
+  },
   methods: {
     calculate: debounce(function (event, slug) {
       const slugIdxInQueue = this.inputQueue.indexOf(slug)
+
       if (slugIdxInQueue) {
         this.inputQueue.splice(slugIdxInQueue, 1)
         this.inputQueue.unshift(slug)
       }
-      this.saveLog({ id: +new Date + Math.random(), text: `Поле ${slug} изменилось на ${event.target.value}` })
+
+      this.formData[slug] = +event.target.value
+
       switch (
         this.inputQueue[2]
       ) {
         case 'price':
-          this.calculatePrice()
+          this.formData.price = helpers.calculatePrice(this.formData)
           break
         case 'qty':
-          this.calculateQty()
+          this.formData.qty = helpers.calculateQty(this.formData)
           break;
         case 'amount':
-          this.calculateAmount()
+          this.formData.amount = helpers.calculateAmount(this.formData)
           break;
       }
     }, 300),
-    calculatePrice() {
-      const price = this.formData.amount / this.formData.qty;
-      if (isFinite(price) && price !== this.formData.price) {
-        this.formData.price = price
-        this.saveLog({ id: +new Date + Math.random(1000), text: `Поле price изменилось на ${this.formData.price}` })
-      }
-    },
-    calculateQty() {
-      const qty = this.formData.amount / this.formData.price;
-      if (isFinite(qty) && qty !== this.formData.qty) {
-        this.formData.qty = qty
-        this.saveLog({ id: +new Date + Math.random(), text: `Поле qty  изменилось на ${this.formData.qty}` })
-      }
-    },
-    calculateAmount() {
-      const amount = this.formData.price * this.formData.qty;
-      if (isFinite(amount) && amount !== this.formData.amount) {
-        this.formData.amount = amount
-        this.saveLog({ id: +new Date + Math.random(), text: `Поле amount  изменилось на ${this.formData.amount}` })
-      }
-    },
     submit() {
       if (this.formData.amount % 2 === 0) {
         setTimeout(() => {
           this.nonce++
+
           const submitData = {...this.formData, nonce: this.nonce}
-          localStorage.setItem('calculationStorage', JSON.stringify(submitData))
-          this.storage = localStorage.getItem('calculationStorage')
-          this.saveLog({id: +new Date + Math.random(), text: 'Данные успешно сохранены. Текущее состояние обновлено!'})
+
+          api.save('calculationStorage', submitData)
+          this.storage = api.fetch('calculationStorage')
+          this.pushToLog('Данные успешно сохранены. Текущее состояние обновлено!')
         }, 1000)
       }else {
-        this.saveLog({id: +new Date + Math.random(), text: 'Ошибка. amount нечетное число. Даннные не сохранены'})
+        this.pushToLog('Ошибка. amount нечетное число. Даннные не сохранены')
       }
     },
-    saveLog(log) {
+    initStorage() {
+      const currentStorage = api.fetch('calculationStorage');
+
+      if (currentStorage) {
+        this.storage = currentStorage
+        this.nonce = JSON.parse(currentStorage).nonce;
+      }
+    },
+    pushToLog(text) {
+      const log = createLog(text)
       this.logs.unshift(log)
     }
   }

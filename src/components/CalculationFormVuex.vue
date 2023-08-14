@@ -28,6 +28,7 @@
 <script>
 import { debounce } from "lodash";
 import { mapGetters, mapActions, mapMutations} from "vuex"
+import api from '../api/api.js'
 
 export default {
   data() {
@@ -52,18 +53,34 @@ export default {
     ...mapGetters(['formData', 'logs', 'storage'])
   },
   created() {
-    const currentStorage = localStorage.getItem('calculateStorageVuex');
-    if (currentStorage) {
-      this.updateStorage(currentStorage)
-      this.updateNonce(JSON.parse(currentStorage).nonce)
+    this.initStorage();
+  },
+  watch: {
+    'formData.price': function(value) {
+      this.pushToLog(`Поле price изменилось на ${value}`)
+    },
+    'formData.qty': function(value) {
+      this.pushToLog(`Поле qty изменилось на ${value}`)
+    },
+    'formData.amount': function(value) {
+      this.pushToLog(`Поле amount изменилось на ${value}`)
     }
   },
   methods: {
     ...mapActions(['calculate', 'submit']),
-    ...mapMutations(['updateStorage', 'updateNonce']),
+    ...mapMutations(['updateStorage', 'updateNonce', 'pushToLog']),
     initCalculate: debounce( function (event, slug) {
-      this.calculate({event, slug})
-    }, 300)
+      const value = +event.target.value
+
+      this.calculate({value, slug})
+    }, 300),
+    initStorage() {
+      const currentStorage = api.fetch('calculateStorageVuex');
+      if (currentStorage) {
+        this.updateStorage(currentStorage)
+        this.updateNonce(JSON.parse(currentStorage).nonce)
+      }
+    }
   }
 }
 </script>

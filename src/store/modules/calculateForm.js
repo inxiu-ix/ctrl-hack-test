@@ -1,3 +1,7 @@
+import helpers from '../../helpers/helpers';
+import createLog from '../../services/createLog'
+import api from '../../api/api.js'
+
 export default {
   state: {
     formData: {
@@ -11,13 +15,12 @@ export default {
     storage: 'Пусто'
   },
   actions: {
-    calculate({ state, commit }, { event, slug }) {
+    calculate({ state, commit }, { value, slug }) {
       const slugIdxInQueue = state.inputQueue.indexOf(slug)
       if (slugIdxInQueue) {
         commit('updateQueue', { idx: slugIdxInQueue, slug })
       }
-      commit('updateFormValue', { slug, value: +event.target.value})
-      commit('setLogs', { id: +new Date + Math.random(), text: `Поле ${slug} изменилось на ${event.target.value}` })
+      commit('updateFormValue', { slug, value})
       switch (
         state.inputQueue[2]
       ) {
@@ -37,12 +40,14 @@ export default {
         setTimeout(() => {
           commit('incrementNonce')
           const submitData = {...state.formData, nonce: state.nonce}
-          localStorage.setItem('calculateStorageVuex', JSON.stringify(submitData))
-          commit('updateStorage', localStorage.getItem('calculateStorageVuex'))
-          commit('setLogs', {id: +new Date + Math.random(), text: 'Данные успешно сохранены. Текущее состояние обновлено!'})
+
+          api.save('calculateStorageVuex', submitData)
+          const storage = api.fetch('calculateStorageVuex')
+          commit('updateStorage', storage)
+          commit('pushToLog', 'Данные успешно сохранены. Текущее состояние обновлено!')
         }, 1000)
       }else {
-        commit('setLogs', {id: +new Date + Math.random(), text: 'Ошибка. amount нечетное число. Даннные не сохранены'})
+        commit('pushToLog', 'Ошибка. amount нечетное число. Даннные не сохранены')
       }
     }
   },
@@ -52,27 +57,19 @@ export default {
       state.inputQueue.unshift(slug)
     },
     calculatePrice(state) {
-      const price = state.formData.amount / state.formData.qty;
-      if (isFinite(price) && price !== state.formData.price) {
-        state.formData.price = price
-        this.commit('setLogs', { id: +new Date + Math.random(1000), text: `Поле price изменилось на ${state.formData.price}` })
-      }
+      const price = helpers.calculatePrice(state.formData)
+      state.formData.price = price
     },
     calculateQty(state) {
-      const qty = state.formData.amount / state.formData.price;
-      if (isFinite(qty) && qty !== state.formData.qty) {
-        state.formData.qty = qty
-        this.commit('setLogs', { id: +new Date + Math.random(), text: `Поле qty  изменилось на ${state.formData.qty}` })
-      }
+      const qty = helpers.calculateQty(state.formData)
+      state.formData.qty = qty
     },
     calculateAmount(state) {
-      const amount = state.formData.price * state.formData.qty;
-      if (isFinite(amount) && amount !== state.formData.amount) {
-        state.formData.amount = amount
-        this.commit('setLogs', { id: +new Date + Math.random(), text: `Поле amount  изменилось на ${state.formData.amount}` })
-      }
+      const amount = helpers.calculateAmount(state.formData)
+      state.formData.amount = amount
     },
-    setLogs(state, log) {
+    pushToLog(state, text) {
+      const log = createLog(text)
       state.logs.unshift(log)
     },
     incrementNonce(state) {
